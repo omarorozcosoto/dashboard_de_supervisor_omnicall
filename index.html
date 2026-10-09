@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro de Comando OmniCall - Supervisor Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f2937',
+                            600: '#374151',
+                            500: '#4b5563'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for enterprise look */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body class="bg-dark-900 text-gray-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+    <!-- Barra Superior / Header -->
+    <header class="bg-dark-800 border-b border-dark-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 sticky top-0 z-40 shadow-md">
+        <div class="flex items-center space-x-4">
+            <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-900/30 flex items-center justify-center">
+                <i class="fa-solid fa-headset text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-3">
+                    <h1 class="text-xl font-bold tracking-tight text-white">OmniCall Enterprise</h1>
+                    <span class="px-2.5 py-0.5 text-xs font-semibold bg-blue-950 text-blue-400 border border-blue-800/50 rounded-full">Supervisor Suite v4.2</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-0.5">Centro de Comando en Tiempo Real • Módulo de Demostración</p>
+            </div>
+        </div>
+
+        <!-- Indicador de Estado y Controles Interactivos -->
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Estado Conectado -->
+            <div class="flex items-center space-x-2 bg-dark-700/80 px-3.5 py-1.5 rounded-lg border border-dark-600">
+                <span class="relative flex h-3 w-3">
+                  <span id="connection-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span id="connection-dot" class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <span id="connection-text" class="text-xs font-medium text-emerald-400">Sistema Conectado - Simulación Activa</span>
+            </div>
+
+            <!-- Botón Pausa / Reanudación -->
+            <button id="toggle-sim-btn" onclick="toggleSimulation()" class="flex items-center space-x-2 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg transition shadow-sm cursor-pointer">
+                <i id="toggle-sim-icon" class="fa-solid fa-pause"></i>
+                <span id="toggle-sim-text">Pausar Simulación</span>
+            </button>
+
+            <!-- Filtro Global por Campaña / Canal -->
+            <div class="relative">
+                <select id="global-filter" onchange="applyGlobalFilter()" class="bg-dark-700 border border-dark-600 text-gray-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 cursor-pointer">
+                    <option value="ALL">Todas las Campañas y Canales</option>
+                    <option value="Inbound">Campaña: Ventas Inbound</option>
+                    <option value="Service">Campaña: Servicio al Cliente</option>
+                    <option value="Collection">Campaña: Cobranza Preventiva</option>
+                    <option value="Voz">Canal: Voz (Telefónico)</option>
+                    <option value="Chat">Canal: Chat / Omnicanal</option>
+                </select>
+            </div>
+
+            <!-- Botón Exportar CSV -->
+            <button onclick="exportDataToCSV()" class="flex items-center space-x-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition shadow-sm cursor-pointer">
+                <i class="fa-solid fa-file-csv"></i>
+                <span>Exportar CSV</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+
+        <!-- Indicadores Principales del Supervisor (KPIs Cards) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Nivel de Servicio -->
+            <div class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute right-4 top-4 text-blue-500/10 text-5xl font-bold pointer-events-none"><i class="fa-solid fa-chart-line"></i></div>
+                <div>
+                    <div class="flex justify-between items-center text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                        <span>Nivel de Servicio (SLA)</span>
+                        <span class="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded text-[10px] border border-emerald-800/40"><i class="fa-solid fa-arrow-up mr-1"></i>+1.2%</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline space-x-2">
+                        <span id="kpi-sla" class="text-3xl font-bold tracking-tight text-white">96.4%</span>
+                        <span class="text-xs text-gray-400">Meta: &gt;95%</span>
+                    </div>
+                </div>
+                <div class="mt-4 w-full bg-dark-700 rounded-full h-2">
+                    <div id="kpi-sla-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 96.4%"></div>
+                </div>
+            </div>
+
+            <!-- Tiempo Medio de Atención -->
+            <div class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute right-4 top-4 text-indigo-500/10 text-5xl font-bold pointer-events-none"><i class="fa-solid fa-clock"></i></div>
+                <div>
+                    <div class="flex justify-between items-center text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                        <span>Tiempo Medio (AHT)</span>
+                        <span class="text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded text-[10px] border border-blue-800/40">Óptimo</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline space-x-2">
+                        <span id="kpi-aht" class="text-3xl font-bold tracking-tight text-white">3m 42s</span>
+                        <span class="text-xs text-gray-400">Promedio general</span>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-dark-700">
+                    <span>Habla: <strong class="text-gray-200">2m 55s</strong></span>
+                    <span>Wrap-up: <strong class="text-gray-200">47s</strong></span>
+                </div>
+            </div>
+
+            <!-- Llamadas y Chats en Cola -->
+            <div class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute right-4 top-4 text-amber-500/10 text-5xl font-bold pointer-events-none"><i class="fa-solid fa-users-rectangle"></i></div>
+                <div>
+                    <div class="flex justify-between items-center text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                        <span>En Cola / Espera</span>
+                        <span id="queue-badge" class="text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded text-[10px] border border-amber-800/40">Atención requerida</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline space-x-3">
+                        <span id="kpi-queue-total" class="text-3xl font-bold tracking-tight text-white">7</span>
+                        <span class="text-xs text-gray-400">Max espera: <strong id="kpi-max-wait" class="text-amber-400">01:15</strong></span>
+                    </div>
+                </div>
+                <div class="mt-4 flex space-x-2 text-xs">
+                    <span class="bg-dark-700 px-2 py-1 rounded text-gray-300">Voz: <strong id="queue-voz" class="text-blue-400">4</strong></span>
+                    <span class="bg-dark-700 px-2 py-1 rounded text-gray-300">Chat: <strong id="queue-chat" class="text-purple-400">3</strong></span>
+                </div>
+            </div>
+
+            <!-- Actividad Reciente / Productividad -->
+            <div class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute right-4 top-4 text-emerald-500/10 text-5xl font-bold pointer-events-none"><i class="fa-solid fa-bolt"></i></div>
+                <div>
+                    <div class="flex justify-between items-center text-gray-400 text-xs font-semibold uppercase tracking-wider">
+                        <span>Productividad General</span>
+                        <span class="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded text-[10px] border border-emerald-800/40">Activos 92%</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline space-x-2">
+                        <span id="kpi-productivity" class="text-3xl font-bold tracking-tight text-white">418</span>
+                        <span class="text-xs text-gray-400">Interacciones hoy</span>
+                    </div>
+                </div>
+                <div class="mt-4 flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-dark-700">
+                    <span>Atendidas: <strong class="text-emerald-400" id="stat-atendidas">382</strong></span>
+                    <span>Abandono: <strong class="text-rose-400" id="stat-abandono">1.8%</strong></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de Campañas -->
+        <section class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center">
+                        <i class="fa-solid fa-bullhorn text-blue-500 mr-2"></i> Rendimiento por Campañas
+                    </h2>
+                    <p class="text-xs text-gray-400">Métricas consolidadas por verticales de negocio y objetivos comerciales</p>
+                </div>
+                <span class="text-xs text-gray-400 bg-dark-700 px-3 py-1 rounded-lg">Actualización en tiempo real</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Campaña 1: Ventas Inbound -->
+                <div class="bg-dark-900/60 border border-dark-700/80 rounded-lg p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-800/40">Inbound Ventas</span>
+                            <span class="text-xs text-emerald-400 font-medium"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Activa</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white mt-2">Campaña Principal de Adquisición</h3>
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">Atendidas</span>
+                                <strong id="camp-inbound-calls" class="text-white text-sm">142</strong>
+                            </div>
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">Conversión</span>
+                                <strong id="camp-inbound-conv" class="text-emerald-400 text-sm">24.5%</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-dark-700 text-xs flex justify-between items-center text-gray-400">
+                        <span>Meta Diaria: <strong>180</strong></span>
+                        <div class="w-24 bg-dark-700 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-blue-500 h-1.5 rounded-full" style="width: 78%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaña 2: Servicio al Cliente -->
+                <div class="bg-dark-900/60 border border-dark-700/80 rounded-lg p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-purple-900/40 text-purple-400 border border-purple-800/40">Soporte Omnicanal</span>
+                            <span class="text-xs text-emerald-400 font-medium"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Activa</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white mt-2">Servicio al Cliente & Post-venta</h3>
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">CSAT Simulado</span>
+                                <strong id="camp-service-csat" class="text-white text-sm">94.8%</strong>
+                            </div>
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">AHT Promedio</span>
+                                <strong id="camp-service-aht" class="text-blue-400 text-sm">3m 15s</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-dark-700 text-xs flex justify-between items-center text-gray-400">
+                        <span>Satisfacción Meta: <strong>&gt;90%</strong></span>
+                        <div class="w-24 bg-dark-700 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-purple-500 h-1.5 rounded-full" style="width: 94%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaña 3: Cobranza Preventiva -->
+                <div class="bg-dark-900/60 border border-dark-700/80 rounded-lg p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-amber-900/40 text-amber-400 border border-amber-800/40">Cobranza Soft</span>
+                            <span class="text-xs text-emerald-400 font-medium"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Activa</span>
+                        </div>
+                        <h3 class="text-sm font-bold text-white mt-2">Cobranza Preventiva & Cartera</h3>
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">Promesas Pago</span>
+                                <strong id="camp-collection-promises" class="text-amber-400 text-sm">68</strong>
+                            </div>
+                            <div class="bg-dark-800 p-2 rounded">
+                                <span class="text-gray-400 block">Tasa Contacto</span>
+                                <strong id="camp-collection-rate" class="text-white text-sm">41.2%</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-dark-700 text-xs flex justify-between items-center text-gray-400">
+                        <span>Efectividad: <strong>Alta</strong></span>
+                        <div class="w-24 bg-dark-700 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-amber-500 h-1.5 rounded-full" style="width: 68%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel Doble: Agentes y Llamadas/Chats Activos -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Panel de Agentes en Tiempo Real (2 Columnas en lg) -->
+            <section class="lg:col-span-2 bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center">
+                            <i class="fa-solid fa-users text-blue-500 mr-2"></i> Agentes Conectados en Tiempo Real
+                        </h2>
+                        <p class="text-xs text-gray-400">Estado de disponibilidad, temporizadores y supervisión operativa</p>
+                    </div>
+                    <!-- Barra de Búsqueda de Agentes -->
+                    <div class="relative w-full sm:w-64">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                            <i class="fa-solid fa-search text-xs"></i>
+                        </span>
+                        <input type="text" id="agent-search" onkeyup="filterAgents()" placeholder="Buscar por nombre o campaña..." class="w-full bg-dark-700 border border-dark-600 text-gray-200 text-xs rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+
+                <!-- Tabla de Agentes -->
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left text-xs text-gray-300">
+                        <thead class="bg-dark-900/80 text-gray-400 uppercase text-[10px] tracking-wider border-b border-dark-700">
+                            <tr>
+                                <th class="py-3 px-4">Agente</th>
+                                <th class="py-3 px-3">Campaña / Rol</th>
+                                <th class="py-3 px-3">Estado Actual</th>
+                                <th class="py-3 px-3">Tiempo en Estado</th>
+                                <th class="py-3 px-3">Atención / Sesión</th>
+                                <th class="py-3 px-4 text-right">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agents-table-body" class="divide-y divide-dark-700/60">
+                            <!-- Inyectado dinámicamente mediante JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 pt-3 border-t border-dark-700 flex flex-wrap justify-between items-center text-xs text-gray-400">
+                    <div class="flex items-center space-x-4">
+                        <span class="flex items-center"><span class="h-2 w-2 rounded-full bg-emerald-500 mr-1.5"></span> Disponible (<span id="count-disp">0</span>)</span>
+                        <span class="flex items-center"><span class="h-2 w-2 rounded-full bg-blue-500 mr-1.5"></span> En Llamada (<span id="count-llamada">0</span>)</span>
+                        <span class="flex items-center"><span class="h-2 w-2 rounded-full bg-amber-500 mr-1.5"></span> Post-llamada (<span id="count-post">0</span>)</span>
+                        <span class="flex items-center"><span class="h-2 w-2 rounded-full bg-purple-500 mr-1.5"></span> Chat (<span id="count-chat">0</span>)</span>
+                        <span class="flex items-center"><span class="h-2 w-2 rounded-full bg-rose-500 mr-1.5"></span> Descanso (<span id="count-desc">0</span>)</span>
+                    </div>
+                    <span id="agent-count-total">Total agentes: 8</span>
+                </div>
+            </section>
+
+            <!-- Llamadas y Chats Simulados (1 Columna en lg) -->
+            <section class="bg-dark-800 border border-dark-700 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center">
+                            <i class="fa-solid fa-headset text-purple-500 mr-2"></i> Cola & Interacciones
+                        </h2>
+                        <p class="text-xs text-gray-400">Entrantes, en curso y en espera</p>
+                    </div>
+                    <span class="bg-purple-950 text-purple-400 px-2 py-1 rounded text-xs font-semibold border border-purple-800/40" id="active-interactions-badge">Live Feed</span>
+                </div>
+
+                <!-- Tabs de Interacciones -->
+                <div class="flex space-x-1 bg-dark-900 p-1 rounded-lg mb-3 text-xs">
+                    <button onclick="switchInteractionTab('all')" id="tab-all" class="flex-1 py-1.5 bg-dark-700 text-white font-medium rounded shadow-sm transition">Todas</button>
+                    <button onclick="switchInteractionTab('waiting')" id="tab-waiting" class="flex-1 py-1.5 text-gray-400 hover:text-white transition">En Espera</button>
+                    <button onclick="switchInteractionTab('active')" id="tab-active" class="flex-1 py-1.5 text-gray-400 hover:text-white transition">En Curso</button>
+                </div>
+
+                <!-- Lista de Interacciones -->
+                <div id="interactions-list" class="space-y-3 overflow-y-auto max-h-[460px] pr-1 flex-1">
+                    <!-- Inyectado dinámicamente por JS -->
+                </div>
+
+                <!-- Nota pie de sección -->
+                <div class="mt-4 pt-3 border-t border-dark-700 text-[11px] text-gray-400 flex justify-between items-center">
+                    <span>Simulación sin llamadas reales</span>
+                    <span class="text-emerald-400 font-medium"><i class="fa-solid fa-shield-halved mr-1"></i> Modo Demostración</span>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <!-- Footer Corporativo -->
+    <footer class="bg-dark-800 border-t border-dark-700 py-4 px-6 text-center text-xs text-gray-500">
+        <p>OmniCall Supervisor Enterprise Suite • Plataforma Simulada para Capacitación y Demostraciones Comerciales • Sin conexión a PBX ni pasarelas externas.</p>
+    </footer>
+
+    <!-- MODAL: Escritorio Simulado del Agente -->
+    <div id="agent-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4">
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <!-- Header Modal -->
+            <div class="bg-dark-700/80 px-6 py-4 flex justify-between items-center border-b border-dark-600">
+                <div class="flex items-center space-x-3">
+                    <div id="modal-agent-avatar" class="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow">
+                        CM
+                    </div>
+                    <div>
+                        <h3 id="modal-agent-name" class="text-base font-bold text-white">Carlos Mendoza</h3>
+                        <p id="modal-agent-meta" class="text-xs text-gray-400">ID Agente: AG-402 • Campaña: Ventas Inbound • Estado: En Llamada</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span id="modal-agent-status-badge" class="px-2.5 py-1 text-xs font-semibold rounded bg-blue-950 text-blue-400 border border-blue-800/50">En Llamada</span>
+                    <button onclick="closeAgentModal()" class="text-gray-400 hover:text-white p-2 rounded-lg bg-dark-600/50 hover:bg-dark-600 transition cursor-pointer">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cuerpo del Modal: Escritorio Simulado (CRM + Conversación) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 p-6 gap-6 overflow-y-auto flex-1 bg-dark-900/40">
+
+                <!-- Columna Izquierda: Ficha CRM Ficticia -->
+                <div class="bg-dark-800 border border-dark-700 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center">
+                                <i class="fa-solid fa-id-card mr-1.5"></i> Ficha CRM Ficticia del Cliente
+                            </h4>
+                            <span class="text-[10px] bg-dark-700 text-gray-300 px-2 py-0.5 rounded">ID Cliente: CLI-88392</span>
+                        </div>
+                        <div class="space-y-3 text-xs">
+                            <div class="bg-dark-900 p-3 rounded-lg border border-dark-700 space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Nombre Cliente:</span>
+                                    <strong id="crm-client-name" class="text-white">Alejandro Sotomayor</strong>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Teléfono / Canal:</span>
+                                    <span id="crm-client-phone" class="text-gray-200">+52 55 4321 9876 (Voz)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Correo Electrónico:</span>
+                                    <span id="crm-client-email" class="text-gray-200">a.sotomayor@empresa.mx</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Segmento / Valor:</span>
+                                    <span class="text-emerald-400 font-semibold">Cliente Premium (Tier A)</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h5 class="text-[11px] font-semibold text-gray-400 uppercase mb-1.5">Historial Reciente / Tickets</h5>
+                                <div class="space-y-1.5">
+                                    <div class="bg-dark-900/80 p-2 rounded border border-dark-700 text-[11px] flex justify-between items-center">
+                                        <span class="text-gray-300">#TK-9921 - Consulta de Facturación</span>
+                                        <span class="text-emerald-400">Resuelto (Ayer)</span>
+                                    </div>
+                                    <div class="bg-dark-900/80 p-2 rounded border border-dark-700 text-[11px] flex justify-between items-center">
+                                        <span class="text-gray-300">#TK-8812 - Renovación de Paquete</span>
+                                        <span class="text-blue-400">En Proceso</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-dark-700 text-[11px] text-gray-400 flex items-center justify-between">
+                        <span>Nota: Simulación de entorno seguro</span>
+                        <span class="text-blue-400 font-medium">PCI-DSS Compliant</span>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Simulación de Conversación Activa / Transcripción -->
+                <div class="bg-dark-800 border border-dark-700 rounded-xl p-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-purple-400 flex items-center">
+                                <i class="fa-solid fa-comments mr-1.5"></i> Transcripción / Chat en Curso
+                            </h4>
+                            <span class="flex items-center text-[10px] text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                                <i class="fa-solid fa-circle text-[6px] mr-1 animate-pulse"></i> En Vivo (Simulado)
+                            </span>
+                        </div>
+
+                        <!-- Caja de Conversación -->
+                        <div id="modal-chat-transcript" class="bg-dark-900 border border-dark-700 rounded-lg p-3 space-y-3 h-52 overflow-y-auto text-xs">
+                            <!-- Inyectado por JS -->
+                        </div>
+                    </div>
+
+                    <!-- Controles de Supervisor en Escritorio Remoto Ficticio -->
+                    <div class="mt-4 pt-3 border-t border-dark-700 flex items-center justify-between">
+                        <span class="text-[11px] text-gray-400">Supervisión silenciosa activa</span>
+                        <div class="space-x-2">
+                            <button onclick="alertModalAction('Audio interceptado para coaching (Simulado)')" class="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 text-gray-200 text-xs rounded transition cursor-pointer">
+                                <i class="fa-solid fa-headphones mr-1"></i> Coachear
+                            </button>
+                            <button onclick="alertModalAction('Mensaje de supervisión enviado al agente (Simulado)')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition cursor-pointer">
+                                <i class="fa-solid fa-paper-plane mr-1"></i> Enviar Sugerencia
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Modal -->
+            <div class="bg-dark-700/80 px-6 py-3 border-t border-dark-600 flex justify-between items-center text-xs">
+                <span class="text-gray-400">Simulación del escritorio del agente sin captura de pantalla real.</span>
+                <button onclick="closeAgentModal()" class="px-4 py-1.5 bg-dark-600 hover:bg-dark-500 text-white rounded font-medium transition cursor-pointer">
+                    Cerrar Ventana
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mensaje Toast personalizado (en vez de alert) -->
+    <div id="custom-toast" class="fixed bottom-6 right-6 z-50 bg-dark-800 border border-blue-500 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
+        <div class="bg-blue-600 text-white p-2 rounded-lg flex items-center justify-center">
+            <i class="fa-solid fa-bell text-sm"></i>
+        </div>
+        <div>
+            <h5 class="text-xs font-bold text-blue-400">Notificación de Supervisor</h5>
+            <p id="toast-message" class="text-xs text-gray-300">Acción completada con éxito.</p>
+        </div>
+    </div>
+
+    <!-- JavaScript para Interactividad y Simulación Viva -->
+    <script>
+        // --- Estado de la Simulación ---
+        let isSimulationRunning = true;
+        let currentFilter = 'ALL';
+        let currentInteractionTab = 'all';
+
+        // Datos simulados de agentes
+        let agentsData = [
+            { id: 'AG-101', name: 'Carlos Mendoza', campaign: 'Inbound', channel: 'Voz', status: 'En Llamada', statusKey: 'llamada', stateTime: 185, sessionTime: 1420, client: 'Alejandro Sotomayor', phone: '+52 55 4321 9876' },
+            { id: 'AG-102', name: 'Ana Torres', campaign: 'Service', channel: 'Chat', status: 'Chat', statusKey: 'chat', stateTime: 92, sessionTime: 1650, client: 'Sofía Valdés', phone: 'Chat #8821' },
+            { id: 'AG-103', name: 'Luis Ramírez', campaign: 'Collection', channel: 'Voz', status: 'Disponible', statusKey: 'disp', stateTime: 45, sessionTime: 1800, client: '-', phone: '-' },
+            { id: 'AG-104', name: 'Sofía Gómez', campaign: 'Inbound', channel: 'Voz', status: 'Post-llamada', statusKey: 'post', stateTime: 28, sessionTime: 1350, client: 'Roberto Garza', phone: '+52 81 9876 1234' },
+            { id: 'AG-105', name: 'Miguel Ángel Ruiz', campaign: 'Service', channel: 'Chat', status: 'Descanso', statusKey: 'desc', stateTime: 310, sessionTime: 1100, client: '-', phone: '-' },
+            { id: 'AG-106', name: 'Valeria Castro', campaign: 'Inbound', channel: 'Voz', status: 'En Llamada', statusKey: 'llamada', stateTime: 240, sessionTime: 1520, client: 'Carmen Morales', phone: '+52 33 5544 3322' },
+            { id: 'AG-107', name: 'Jorge Morales', campaign: 'Collection', channel: 'Voz', status: 'Disponible', statusKey: 'disp', stateTime: 15, sessionTime: 1720, client: '-', phone: '-' },
+            { id: 'AG-108', name: 'Lucía Fernández', campaign: 'Service', channel: 'Chat', status: 'Chat', statusKey: 'chat', stateTime: 115, sessionTime: 1450, client: 'Daniela Ríos', phone: 'Chat #9910' }
+        ];
+
+        // Datos simulados de interacciones y colas
+        let interactionsData = [
+            { id: 'INT-901', client: 'Fernando Alonso', campaign: 'Inbound', type: 'Voz', status: 'En Espera', duration: '01:15', agent: '-' },
+            { id: 'INT-902', client: 'Mariana Treviño', campaign: 'Service', type: 'Chat', status: 'En Espera', duration: '00:54', agent: '-' },
+            { id: 'INT-903', client: 'Héctor Benítez', campaign: 'Collection', type: 'Voz', status: 'En Espera', duration: '00:32', agent: '-' },
+            { id: 'INT-904', client: 'Alejandro Sotomayor', campaign: 'Inbound', type: 'Voz', status: 'En Curso', duration: '03:05', agent: 'Carlos Mendoza' },
+            { id: 'INT-905', client: 'Sofía Valdés', campaign: 'Service', type: 'Chat', status: 'En Curso', duration: '01:32', agent: 'Ana Torres' },
+            { id: 'INT-906', client: 'Carmen Morales', campaign: 'Inbound', type: 'Voz', status: 'En Curso', duration: '04:00', agent: 'Valeria Castro' },
+            { id: 'INT-907', client: 'Daniela Ríos', campaign: 'Service', type: 'Chat', status: 'En Curso', duration: '01:55', agent: 'Lucía Fernández' }
+        ];
+
+        // Transcripciones de ejemplo para el modal
+        const mockTranscripts = {
+            'Carlos Mendoza': [
+                { sender: 'client', time: '14:20', text: 'Hola buenos días, tengo una duda sobre mi última factura de internet.' },
+                { sender: 'agent', time: '14:21', text: 'Con gusto le atiendo Sr. Sotomayor, permítame validar su número de contrato en el sistema.' },
+                { sender: 'client', time: '14:22', text: 'Claro, es el 88392-MX.' },
+                { sender: 'agent', time: '14:23', text: 'Muchas gracias. Veo reflejado un ajuste promocional aplicado. Quedaría cubierto al 100%.' }
+            ],
+            'Ana Torres': [
+                { sender: 'client', time: '14:22', text: 'Hola, el chat de soporte no me permite adjuntar mi comprobante de pago.' },
+                { sender: 'agent', time: '14:23', text: 'Entiendo perfectamente. ¿Podría intentar enviarlo en formato JPG o PDF menor a 5MB por favor?' },
+                { sender: 'client', time: '14:24', text: 'Listo, ahí va adjunto.' },
+                { sender: 'agent', time: '14:24', text: 'Recibido correctamente. Ya quedó liberado su servicio en plataforma.' }
+            ],
+            'Valeria Castro': [
+                { sender: 'client', time: '14:18', text: 'Quisiera contratar el paquete empresarial con fibra simétrica.' },
+                { sender: 'agent', time: '14:20', text: 'Excelente decisión Doña Carmen. Tenemos cobertura en su zona con instalación sin costo.' }
+            ],
+            'Lucía Fernández': [
+                { sender: 'client', time: '14:21', text: 'Necesito cambiar mi dirección de facturación.' },
+                { sender: 'agent', time: '14:22', text: 'Por supuesto, facilíteme su nuevo código postal y domicilio completo por favor.' }
+            ]
+        };
+
+        // --- Funciones de Inicialización y Renderizado ---
+        window.onload = function() {
+            renderAgents();
+            renderInteractions();
+            updateKPIsCount();
+
+            // Intervalo de temporizadores en vivo (cada segundo)
+            setInterval(() => {
+                if (!isSimulationRunning) return;
+                tickTimers();
+            }, 1000);
+
+            // Intervalo de cambios de estado aleatorios para realismo (cada 8 segundos)
+            setInterval(() => {
+                if (!isSimulationRunning) return;
+                simulateDynamicActivity();
+            }, 8000);
+        };
+
+        function tickTimers() {
+            agentsData.forEach(agent => {
+                agent.stateTime++;
+                agent.sessionTime++;
+            });
+            renderAgentsTableBody();
+        }
+
+        function simulateDynamicActivity() {
+            // Cambiar aleatoriamente el estado de un agente para dar realismo
+            const randomIndex = Math.floor(Math.random() * agentsData.length);
+            const agent = agentsData[randomIndex];
+            
+            const statuses = [
+                { key: 'disp', label: 'Disponible' },
+                { key: 'llamada', label: 'En Llamada' },
+                { key: 'post', label: 'Post-llamada' },
+                { key: 'chat', label: 'Chat' },
+                { key: 'desc', label: 'Descanso' }
+            ];
+
+            const newStatusObj = statuses[Math.floor(Math.random() * statuses.length)];
+            agent.status = newStatusObj.label;
+            agent.statusKey = newStatusObj.key;
+            agent.stateTime = 0; // reiniciar temporizador de estado
+
+            if (newStatusObj.key === 'disp' || newStatusObj.key === 'desc') {
+                agent.client = '-';
+                agent.phone = '-';
+            } else {
+                agent.client = 'Cliente Simulado #' + Math.floor(Math.random() * 9000 + 1000);
+                agent.phone = '+52 55 ' + Math.floor(Math.random() * 8999 + 1000) + ' ' + Math.floor(Math.random() * 8999 + 1000);
+            }
+
+            renderAgents();
+            updateKPIsCount();
+        }
+
+        function formatSeconds(sec) {
+            const mins = Math.floor(sec / 60);
+            const remainingSecs = sec % 60;
+            return `${mins}m ${remainingSecs < 10 ? '0' : ''}${remainingSecs}s`;
+        }
+
+        function renderAgents() {
+            renderAgentsTableBody();
+            updateAgentCounts();
+        }
+
+        function renderAgentsTableBody() {
+            const tbody = document.getElementById('agents-table-body');
+            const searchQuery = document.getElementById('agent-search').value.toLowerCase();
+            
+            tbody.innerHTML = '';
+
+            const filtered = agentsData.filter(agent => {
+                const matchesSearch = agent.name.toLowerCase().includes(searchQuery) || agent.campaign.toLowerCase().includes(searchQuery) || agent.id.toLowerCase().includes(searchQuery);
+                const matchesFilter = currentFilter === 'ALL' || agent.campaign === currentFilter || agent.channel === currentFilter;
+                return matchesSearch && matchesFilter;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-gray-500">No se encontraron agentes con los criterios seleccionados.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(agent => {
+                let badgeClass = 'bg-dark-700 text-gray-300 border-dark-600';
+                let dotColor = 'bg-gray-400';
+
+                if (agent.statusKey === 'disp') { badgeClass = 'bg-emerald-950/60 text-emerald-400 border-emerald-800/40'; dotColor = 'bg-emerald-500'; }
+                else if (agent.statusKey === 'llamada') { badgeClass = 'bg-blue-950/60 text-blue-400 border-blue-800/40'; dotColor = 'bg-blue-500'; }
+                else if (agent.statusKey === 'post') { badgeClass = 'bg-amber-950/60 text-amber-400 border-amber-800/40'; dotColor = 'bg-amber-500'; }
+                else if (agent.statusKey === 'chat') { badgeClass = 'bg-purple-950/60 text-purple-400 border-purple-800/40'; dotColor = 'bg-purple-500'; }
+                else if (agent.statusKey === 'desc') { badgeClass = 'bg-rose-950/60 text-rose-400 border-rose-800/40'; dotColor = 'bg-rose-500'; }
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-dark-700/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-medium text-white flex items-center space-x-2.5">
+                        <div class="w-7 h-7 rounded-full bg-dark-700 text-blue-400 font-bold flex items-center justify-center text-[11px] border border-dark-600">
+                            ${agent.name.split(' ').map(n => n[0]).join('').substring(0,2)}
+                        </div>
+                        <div>
+                            <div>${agent.name}</div>
+                            <div class="text-[10px] text-gray-400">${agent.id}</div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-3">
+                        <span class="text-gray-200">${agent.campaign}</span>
+                        <span class="text-[10px] text-gray-400 block">Canal: ${agent.channel}</span>
+                    </td>
+                    <td class="py-3 px-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${badgeClass}">
+                            <span class="h-1.5 w-1.5 rounded-full ${dotColor} mr-1.5"></span> ${agent.status}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 font-mono text-gray-300">
+                        ${formatSeconds(agent.stateTime)}
+                    </td>
+                    <td class="py-3 px-3">
+                        <div class="text-gray-200">${agent.client}</div>
+                        <div class="text-[10px] text-gray-400 font-mono">${agent.phone}</div>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="openAgentModal('${agent.name}')" class="px-2.5 py-1 bg-dark-700 hover:bg-blue-600 hover:text-white text-gray-300 rounded text-xs transition border border-dark-600 cursor-pointer">
+                            <i class="fa-solid fa-desktop mr-1"></i> Inspeccionar
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateAgentCounts() {
+            let disp = 0, llamada = 0, post = 0, chat = 0, desc = 0;
+            agentsData.forEach(a => {
+                if (a.statusKey === 'disp') disp++;
+                else if (a.statusKey === 'llamada') llamada++;
+                else if (a.statusKey === 'post') post++;
+                else if (a.statusKey === 'chat') chat++;
+                else if (a.statusKey === 'desc') desc++;
+            });
+
+            document.getElementById('count-disp').innerText = disp;
+            document.getElementById('count-llamada').innerText = llamada;
+            document.getElementById('count-post').innerText = post;
+            document.getElementById('count-chat').innerText = chat;
+            document.getElementById('count-desc').innerText = desc;
+            document.getElementById('agent-count-total').innerText = `Total agentes: ${agentsData.length}`;
+        }
+
+        function updateKPIsCount() {
+            // Actualizar valores numéricos simulados con ligera variación en vivo
+            const sla = (95.5 + Math.random() * 1.5).toFixed(1) + '%';
+            document.getElementById('kpi-sla').innerText = sla;
+            document.getElementById('kpi-sla-bar').style.width = sla;
+            
+            const queueTotal = Math.floor(Math.random() * 4) + 5;
+            document.getElementById('kpi-queue-total').innerText = queueTotal;
+            document.getElementById('queue-voz').innerText = Math.floor(queueTotal / 2) + 2;
+            document.getElementById('queue-chat').innerText = queueTotal - (Math.floor(queueTotal / 2) + 2);
+        }
+
+        function renderInteractions() {
+            const listContainer = document.getElementById('interactions-list');
+            listContainer.innerHTML = '';
+
+            const filtered = interactionsData.filter(item => {
+                if (currentInteractionTab === 'waiting') return item.status === 'En Espera';
+                if (currentInteractionTab === 'active') return item.status === 'En Curso';
+                return true;
+            });
+
+            filtered.forEach(item => {
+                const isWaiting = item.status === 'En Espera';
+                const statusBadge = isWaiting 
+                    ? '<span class="bg-amber-950/60 text-amber-400 border border-amber-800/40 px-2 py-0.5 rounded text-[10px]">En Espera</span>'
+                    : '<span class="bg-blue-950/60 text-blue-400 border border-blue-800/40 px-2 py-0.5 rounded text-[10px]">En Curso</span>';
+
+                const typeIcon = item.type === 'Voz' ? '<i class="fa-solid fa-phone text-blue-400"></i>' : '<i class="fa-solid fa-comment-dots text-purple-400"></i>';
+
+                const div = document.createElement('div');
+                div.className = 'bg-dark-900/60 border border-dark-700/80 rounded-lg p-3 flex justify-between items-center';
+                div.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs">${typeIcon}</span>
+                            <span class="text-xs font-bold text-white">${item.client}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="text-[10px] text-gray-400">
+                            Campaña: <strong class="text-gray-300">${item.campaign}</strong> • Agente: <strong class="text-gray-300">${item.agent}</strong>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs font-mono font-bold text-amber-400">${item.duration}</span>
+                        <div class="text-[9px] text-gray-400">Duración</div>
+                    </div>
+                `;
+                listContainer.appendChild(div);
+            });
+        }
+
+        function switchInteractionTab(tab) {
+            currentInteractionTab = tab;
+            document.getElementById('tab-all').className = tab === 'all' ? 'flex-1 py-1.5 bg-dark-700 text-white font-medium rounded shadow-sm transition' : 'flex-1 py-1.5 text-gray-400 hover:text-white transition';
+            document.getElementById('tab-waiting').className = tab === 'waiting' ? 'flex-1 py-1.5 bg-dark-700 text-white font-medium rounded shadow-sm transition' : 'flex-1 py-1.5 text-gray-400 hover:text-white transition';
+            document.getElementById('tab-active').className = tab === 'active' ? 'flex-1 py-1.5 bg-dark-700 text-white font-medium rounded shadow-sm transition' : 'flex-1 py-1.5 text-gray-400 hover:text-white transition';
+            renderInteractions();
+        }
+
+        function filterAgents() {
+            renderAgentsTableBody();
+        }
+
+        function applyGlobalFilter() {
+            currentFilter = document.getElementById('global-filter').value;
+            renderAgentsTableBody();
+            showToast(`Filtro aplicado: ${document.getElementById('global-filter').options[document.getElementById('global-filter').selectedIndex].text}`);
+        }
+
+        function toggleSimulation() {
+            isSimulationRunning = !isSimulationRunning;
+            const btn = document.getElementById('toggle-sim-btn');
+            const icon = document.getElementById('toggle-sim-icon');
+            const text = document.getElementById('toggle-sim-text');
+            const ping = document.getElementById('connection-ping');
+            const dot = document.getElementById('connection-dot');
+            const connText = document.getElementById('connection-text');
+
+            if (isSimulationRunning) {
+                btn.className = 'flex items-center space-x-2 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium rounded-lg transition shadow-sm cursor-pointer';
+                icon.className = 'fa-solid fa-pause';
+                text.innerText = 'Pausar Simulación';
+                ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                dot.className = 'relative inline-flex rounded-full h-3 w-3 bg-emerald-500';
+                connText.innerText = 'Sistema Conectado - Simulación Activa';
+                connText.className = 'text-xs font-medium text-emerald-400';
+                showToast('Simulación reanudada con éxito');
+            } else {
+                btn.className = 'flex items-center space-x-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-lg transition shadow-sm cursor-pointer';
+                icon.className = 'fa-solid fa-play';
+                text.innerText = 'Reanudar Simulación';
+                ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-0';
+                dot.className = 'relative inline-flex rounded-full h-3 w-3 bg-amber-500';
+                connText.innerText = 'Simulación Pausada por Supervisor';
+                connText.className = 'text-xs font-medium text-amber-400';
+                showToast('Simulación en pausa');
+            }
+        }
+
+        // --- Funcionalidad del Modal de Escritorio de Agente ---
+        function openAgentModal(agentName) {
+            const agent = agentsData.find(a => a.name === agentName);
+            if (!agent) return;
+
+            document.getElementById('modal-agent-name').innerText = agent.name;
+            document.getElementById('modal-agent-meta').innerText = `ID Agente: ${agent.id} • Campaña: ${agent.campaign} • Estado: ${agent.status}`;
+            document.getElementById('modal-agent-avatar').innerText = agent.name.split(' ').map(n => n[0]).join('').substring(0,2);
+            document.getElementById('modal-agent-status-badge').innerText = agent.status;
+            
+            document.getElementById('crm-client-name').innerText = agent.client !== '-' ? agent.client : 'Ningún cliente asignado actualmente';
+            document.getElementById('crm-client-phone').innerText = agent.phone;
+
+            // Renderizar transcripción
+            const transcriptContainer = document.getElementById('modal-chat-transcript');
+            transcriptContainer.innerHTML = '';
+            
+            const transcriptList = mockTranscripts[agent.name] || [
+                { sender: 'agent', time: '14:15', text: 'Bienvenido al servicio OmniCall, ¿en qué podemos asistirle hoy?' },
+                { sender: 'client', time: '14:16', text: 'Hola, tengo una consulta general sobre mi cuenta.' }
+            ];
+
+            transcriptList.forEach(t => {
+                const isAgent = t.sender === 'agent';
+                const div = document.createElement('div');
+                div.className = `flex flex-col ${isAgent ? 'items-end' : 'items-start'}`;
+                div.innerHTML = `
+                    <div class="text-[10px] text-gray-400 mb-0.5">${isAgent ? agent.name : agent.client} • ${t.time}</div>
+                    <div class="p-2.5 rounded-lg max-w-[85%] text-xs ${isAgent ? 'bg-blue-600/30 border border-blue-500/40 text-white' : 'bg-dark-700 text-gray-200'}">
+                        ${t.text}
+                    </div>
+                `;
+                transcriptContainer.appendChild(div);
+            });
+
+            document.getElementById('agent-modal').classList.remove('hidden');
+        }
+
+        function closeAgentModal() {
+            document.getElementById('agent-modal').classList.add('hidden');
+        }
+
+        function alertModalAction(message) {
+            showToast(message);
+        }
+
+        // --- Exportación a CSV Funcional mediante Blob URL ---
+        function exportDataToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "ID Agente,Nombre,Campana,Canal,Estado,Tiempo Estado Segundos,Sesion Segundos,Cliente Actual\n";
+
+            agentsData.forEach(agent => {
+                let row = [agent.id, `"${agent.name}"`, agent.campaign, agent.channel, agent.status, agent.stateTime, agent.sessionTime, `"${agent.client}"`].join(",");
+                csvContent += row + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `omnical_supervisor_reporte_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('Archivo CSV exportado con éxito al equipo.');
+        }
+
+        // --- Notificación Toast Personalizada ---
+        function showToast(message) {
+            const toast = document.getElementById('custom-toast');
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
